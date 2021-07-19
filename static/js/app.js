@@ -1,544 +1,366 @@
-// read json file
-d3.json("samples.json").then((data)=>{
-    // select the selDataset
-    var selectID=d3.select("#selDataset");
-    // loop through the data.names
-    for (i=0;i<153;i++){
-        // append option to selDataset and add text of data.names
-        selectID.append("option").text(data.names[i]);     
-};
-// On change to the document object model, call submit()
-d3.selectAll("#selDataset").on("change",submit);
-});
-// define function init()
-function init()
-{   
-    // create variables according to selection of different ids
-    
-    var id=d3.select("#id");
-    var ethnicity=d3.select("#ethnicity");
-    var gender=d3.select("#gender");
-    var age=d3.select("#age");
-    var location=d3.select("#location");
-    var bbtype=d3.select("#bbtype");
-    var wfreq=d3.select("#wfreq");
-    // read json file
-    d3.json("samples.json").then((data)=>{
-        
-                
-    //add text to each selection 
-    id.text("id:"+data.metadata[0].id);
-    ethnicity.text("ethnicity:"+data.metadata[0].ethnicity);
-    gender.text("gender:"+data.metadata[0].gender);
-    age.text("age:"+data.metadata[0].age);
-    location.text("location:"+data.metadata[0].location);
-    bbtype.text("bbtype:"+data.metadata[0].bbtype);
-    wfreq.text("wfreq:"+data.metadata[0].wfreq);
-    // plot the gauge
-    var data1=[
-     {
-        type:"indicator",
-        mode:"gauge+number",
-        value:data.metadata[0].wfreq,
-        title:{text:"Scrubs per Week",font:{size:20}},
-                
-        gauge:{
-            axis:{range:[null,9],tickwidth:1,tickcolor:"black"},
-            bar:{color:"green"},
-            bgcolor:"white",
-            borderwidth:1,
-            bordercolor:"black",
-            steps:[
-                {range:[0,1],color:"#fff"},
-                {range:[1,2],color:"#dae0e9"},
-                {range:[2,3],color:"#b5c1d3"},
-                {range:[3,4],color:"#91a3bd"},
-                {range:[4,5],color:"#6d87a8"},
-                {range:[5,6],color:"#476b93"},
-                {range:[6,7],color:"#17517e"},
-                {range:[7,8],color:"#0e4d79"},
-                {range:[8,9],color:"#024874"}
-                                
-                ],
-            threshold:{
-                line:{color:"red",width:4},
-                thickness:0.75,
-                value:data.metadata[0].wfreq
+// select the user input field
+var idSelect = d3.select("#selDataset");
+
+// select the demographic info div's ul list group
+var demographicsTable = d3.select("#sample-metadata");
+
+// select the bar chart div
+var barChart = d3.select("#bar");
+
+// select the bubble chart div
+var bubbleChart = d3.select("bubble");
+
+// select the gauge chart div
+var gaugeChart = d3.select("gauge");
+
+// create a function to initially populate dropdown menu with IDs and draw charts by default (using the first ID)
+function init() {
+
+    // reset any previous data
+    resetData();
+
+    // read in samples from JSON file
+    d3.json("data/samples.json").then((data => {
+
+        // ----------------------------------
+        // POPULATE DROPDOWN MENU WITH IDs 
+        // ----------------------------------
+
+        //  use a forEach to loop over each name in the array data.names to populate dropdowns with IDs
+        data.names.forEach((name => {
+            var option = idSelect.append("option");
+            option.text(name);
+        })); // close forEach
+
+        // get the first ID from the list for initial charts as a default
+        var initId = idSelect.property("value")
+
+        // plot charts with initial ID
+        plotCharts(initId);
+
+    })); // close .then()
+
+} // close init() function
+
+// create a function to reset divs to prepare for new data
+function resetData() {
+
+    // ----------------------------------
+    // CLEAR THE DATA
+    // ----------------------------------
+
+    demographicsTable.html("");
+    barChart.html("");
+    bubbleChart.html("");
+    gaugeChart.html("");
+
+}; // close resetData()
+
+// create a function to read JSON and plot charts
+function plotCharts(id) {
+
+    // read in the JSON data
+    d3.json("data/samples.json").then((data => {
+
+        // ----------------------------------
+        // POPULATE DEMOGRAPHICS TABLE
+        // ----------------------------------
+
+        // filter the metadata for the ID chosen
+        var individualMetadata = data.metadata.filter(participant => participant.id == id)[0];
+
+        // get the wash frequency for gauge chart later
+        var wfreq = individualMetadata.wfreq;
+
+        // Iterate through each key and value in the metadata
+        Object.entries(individualMetadata).forEach(([key, value]) => {
+
+            var newList = demographicsTable.append("ul");
+            newList.attr("class", "list-group list-group-flush");
+
+            // append a li item to the unordered list tag
+            var listItem = newList.append("li");
+
+            // change the class attributes of the list item for styling
+            listItem.attr("class", "list-group-item p-1 demo-text bg-transparent");
+
+            // add the key value pair from the metadata to the demographics list
+            listItem.text(`${key}: ${value}`);
+
+        }); // close forEach
+
+        // --------------------------------------------------
+        // RETRIEVE DATA FOR PLOTTING CHARTS
+        // --------------------------------------------------
+
+        // filter the samples for the ID chosen
+        var individualSample = data.samples.filter(sample => sample.id == id)[0];
+
+        // create empty arrays to store sample data
+        var otuIds = [];
+        var otuLabels = [];
+        var sampleValues = [];
+
+        // Iterate through each key and value in the sample to retrieve data for plotting
+        Object.entries(individualSample).forEach(([key, value]) => {
+
+            switch (key) {
+                case "otu_ids":
+                    otuIds.push(value);
+                    break;
+                case "sample_values":
+                    sampleValues.push(value);
+                    break;
+                case "otu_labels":
+                    otuLabels.push(value);
+                    break;
+                    // case
+                default:
+                    break;
+            } // close switch statement
+
+        }); // close forEach
+
+        // slice and reverse the arrays to get the top 10 values, labels and IDs
+        var topOtuIds = otuIds[0].slice(0, 10).reverse();
+        var topOtuLabels = otuLabels[0].slice(0, 10).reverse();
+        var topSampleValues = sampleValues[0].slice(0, 10).reverse();
+
+        // use the map function to store the IDs with "OTU" for labelling y-axis
+        var topOtuIdsFormatted = topOtuIds.map(otuID => "OTU " + otuID);
+
+        // ----------------------------------
+        // PLOT BAR CHART
+        // ----------------------------------
+
+        // create a trace
+        var traceBar = {
+            x: topSampleValues,
+            y: topOtuIdsFormatted,
+            text: topOtuLabels,
+            type: 'bar',
+            orientation: 'h',
+            marker: {
+                color: 'rgb(29,145,192)'
+            }
+        };
+
+        // create the data array for plotting
+        var dataBar = [traceBar];
+
+        // define the plot layout
+        var layoutBar = {
+            height: 500,
+            width: 600,
+            font: {
+                family: 'Quicksand'
+            },
+            hoverlabel: {
+                font: {
+                    family: 'Quicksand'
                 }
+            },
+            title: {
+                text: `<b>Top OTUs for Test Subject ${id}</b>`,
+                font: {
+                    size: 18,
+                    color: 'rgb(34,94,168)'
+                }
+            },
+            xaxis: {
+                title: "<b>Sample values<b>",
+                color: 'rgb(34,94,168)'
+            },
+            yaxis: {
+                tickfont: { size: 14 }
             }
         }
-        ];
-    var layout={
-        width:500,
-        height:400,
-        margin:{t:50,r:150,l:50,b:50},
-        paper_bgcolor:"white",
-        font:{color:"darkblue",family:"Arial"}
-        };
-    //Plot the chart to a div tag with id gauge 
-    Plotly.newPlot("gauge",data1,layout);
 
-    //create variables of sample_values  
-    var data2=data.samples[0].sample_values; 
-    //get the first 10 items    
-    var data3=data2.slice(0,10);
-    // reverse the 10 items
-    var data4=data3.reverse();
-    // get otu_ids
-    var otuid=data.samples[0].otu_ids              
-    //Plot horizontal bar    
-    var trace1={
-        x:data4,
-        text:[data.samples[0].otu_labels[9],data.samples[0].otu_labels[8],data.samples[0].otu_labels[7],data.samples[0].otu_labels[6],data.samples[0].otu_labels[5],data.samples[0].otu_labels[4],data.samples[0].otu_labels[3],data.samples[0].otu_labels[2],data.samples[0].otu_labels[1],data.samples[0].otu_labels[0]],                    
-        name:"otu",
-        type:"bar",
-        orientation:"h"
-                };           
-    var chartData = [trace1];          
-    var layout1 = {
-        title: "Top 10 Bacteria Cultures Found",
-        yaxis:{
-            tickmode:"array",
-            tickvals:[0,1,2,3,4,5,6,7,8,9],
-            ticktext:["OTU "+data.samples[0].otu_ids[9],"OTU "+data.samples[0].otu_ids[8],"OTU "+data.samples[0].otu_ids[7],"OTU "+data.samples[0].otu_ids[6],"OTU "+data.samples[0].otu_ids[5],"OTU "+data.samples[0].otu_ids[4],"OTU "+data.samples[0].otu_ids[3],"OTU "+data.samples[0].otu_ids[2],"OTU "+data.samples[0].otu_ids[1],"OTU "+data.samples[0].otu_ids[0]]
-             }
-        };
 
-    //Plot the chart to a div tag with id bar   
-    Plotly.newPlot("bar", chartData, layout1);
+        // plot the bar chart to the "bar" div
+        Plotly.newPlot("bar", dataBar, layoutBar);
 
-    // Plot the bubble chart
-    var trace2={
-        x:otuid,
-        y:data2,
-        text:data.samples[0].otu_labels,
-        mode:"markers",
-        marker:{
-            size:data2,
-            color:otuid,
-           
+        // ----------------------------------
+        // PLOT BUBBLE CHART
+        // ----------------------------------
+
+        // create trace
+        var traceBub = {
+            x: otuIds[0],
+            y: sampleValues[0],
+            text: otuLabels[0],
+            mode: 'markers',
+            marker: {
+                size: sampleValues[0],
+                color: otuIds[0],
+                colorscale: 'YlGnBu'
             }
         };
-    var chartdata2=[trace2]
-    var layout2={
-        title:"Bacteria Cultures Per Sample",
-        xaxis:{
-            title: "OTU ID",
-                }
-                }
-    //Plot the chart to a div tag with id bubble 
-    Plotly.newPlot("bubble",chartdata2,layout2);
-        
-    //On change to the document object model, call submit()
-    d3.selectAll("#selDataset").on("change",submit); 
-    });
- 
-}
-// Define submit()
-function submit(){
-    // prevent the page from refreshing
-    d3.event.preventDefault();
-    // create variabels of selections of different ids
-    var dataset=d3.select("#selDataset").node().value;
-    var id=d3.select("#id");
-    var ethnicity=d3.select("#ethnicity");
-    var gender=d3.select("#gender");
-    var age=d3.select("#age");
-    var location=d3.select("#location");
-    var bbtype=d3.select("#bbtype");
-    var wfreq=d3.select("#wfreq");
-    // read json file
-    d3.json("samples.json").then((data)=>{
-        // loop through items of data.metadata
-        for (i=0;i<153;i++){
-            //set condition of if statement     
-            if (dataset===data.metadata[i].id.toString()){
-                // add text to each selection of id
-               id.text("id:"+data.metadata[i].id);
-               if (data.metadata[i].ethnicity===null){
-                ethnicity.text("ethnicity:"+"null")
-               }
-               else{
-                ethnicity.text("ethnicity:"+data.metadata[i].ethnicity)
-               };
-               if (data.metadata[i].gender===null){
-                gender.text("gender:"+"null")
-               }
-               else{
-                gender.text("gender:"+data.metadata[i].gender)
-               };
-               if (data.metadata[i].age===null){
-                age.text("age:"+"null")
-               }
-               else{
-                age.text("age:"+data.metadata[i].age)
-               };
-               
-               if (data.metadata[i].location===null){
-                location.text("location:"+"null")
-               }
-               else{
-                location.text("location:"+data.metadata[i].location)
-               };
-               if (data.metadata[i].bbtype===null){
-                bbtype.text("bbtype:"+"null")
-               }
-               else{
-                bbtype.text("bbtype:"+data.metadata[i].bbtype)
-               };
-               if (data.metadata[i].wfreq===null){
-                wfreq.text("wfreq:"+"null")
-               }
-               else{
-                wfreq.text("wfreq:"+data.metadata[i].wfreq)
-               };
-               
-                // plot the gauge
-                var data1=[
-                    {
-                    type:"indicator",
-                    mode:"gauge+number",
-                    value:data.metadata[i].wfreq,
-                   
-                    title:{text:"Scrubs per Week",font:{size:20}},
-                
-                    gauge:{
-                        axis:{range:[null,9],tickwidth:1,tickcolor:"black"},
-                        bar:{color:"green"},
-                        bgcolor:"white",
-                        borderwidth:1,
-                        bordercolor:"black",
-                        steps:[
-                            {range:[0,1],color:"#fff"},
-                            {range:[1,2],color:"#dae0e9"},
-                            {range:[2,3],color:"#b5c1d3"},
-                            {range:[3,4],color:"#91a3bd"},
-                            {range:[4,5],color:"#6d87a8"},
-                            {range:[5,6],color:"#476b93"},
-                            {range:[6,7],color:"#17517e"},
-                            {range:[7,8],color:"#0e4d79"},
-                            {range:[8,9],color:"#024874"}
-                                
-                    ],
-                        threshold:{
-                            line:{color:"red",width:4},
-                            thickness:0.75,
-                            value:data.metadata[i].wfreq
-                        }
-                    }
-                }
-                ];
-                var layout={
-                    width:500,
-                    height:400,
-                    margin:{t:50,r:150,l:50,b:50},
-                    paper_bgcolor:"white",
-                    font:{color:"darkblue",family:"Arial"}
-                };
-                //Plot the chart to a div tag with id gauge
-                Plotly.newPlot("gauge",data1,layout);
-                // get sample_values
-                var data2=data.samples[i].sample_values;
-                // get the first 10 items of sample_values
-                var data3=data2.slice(0,10);
-                // reverse the 10 items
-                var data4=data3.reverse();
-                // get otu_ids
-                var otuid=data.samples[i].otu_ids;
-                // if there is only 1 sample_value
-                if (data.samples[i].sample_values.length===1){
-                    // Plot the bar
-                    var trace2={
-                        x:data.samples[i].sample_values,
-                        text:data.samples[i].otu_labels,
-                        name:"otu",
-                        type:"bar",
-                        orientation:"h"
-                    };
-                    var chartdata2=[trace2]
-                    var layout2={
-                        title:"Bacteria Culture Found",
-                        yaxis:{
-                            tickvals:[0],
-                            ticktext:["OTU "+data.samples[i].otu_ids]
-                            
-                        }
-                    }
-                    // Plot the chart to a div tag with bar
-                    Plotly.newPlot("bar",chartdata2,layout2);
-                }
-                // if there are 2 sample_values
-                else if (data.samples[i].sample_values.length===2){ 
-                    //Plot the bar   
-                    var trace11={
-                        x:data4,
-                        text:[data.samples[i].otu_labels[1],data.samples[i].otu_labels[0]],                    
-                        name:"otu",
-                        type:"bar",
-                        orientation:"h"
-                    };
-                    var chartData11 = [trace11];
-                    var layout11 = {
-                        title: "Bacteria Cultures Found",
-                        yaxis:{
-                            tickmode:"array",
-                            tickvals:[0,1],
-                            ticktext:["OTU "+data.samples[i].otu_ids[1],"OTU "+data.samples[i].otu_ids[0]]
-                        }
-                       };
-       
-                        //Plot the Chart to a div tag with bar
-                       Plotly.newPlot("bar", chartData11, layout11);
 
-                }
-                 // if there are 3 sample_values
-                else if (data.samples[i].sample_values.length===3){ 
-                    //Plot the bar   
-                    var trace12={
-                        x:data4,
-                        text:[data.samples[i].otu_labels[2],data.samples[i].otu_labels[1],data.samples[i].otu_labels[0]],                    
-                        name:"otu",
-                        type:"bar",
-                        orientation:"h"
-                    };
-                    var chartData12 = [trace12];
-                    var layout12 = {
-                        title: "Bacteria Cultures Found",
-                        yaxis:{
-                            tickmode:"array",
-                            tickvals:[0,1,2],
-                            ticktext:["OTU "+data.samples[i].otu_ids[2],"OTU "+data.samples[i].otu_ids[1],"OTU "+data.samples[i].otu_ids[0]]
-                        }
-                       };
-       
-                        //Plot the Chart to a div tag with bar
-                       Plotly.newPlot("bar", chartData12, layout12);
+        // create the data array for the plot
+        var dataBub = [traceBub];
 
+        // define the plot layout
+        var layoutBub = {
+            font: {
+                family: 'Quicksand'
+            },
+            hoverlabel: {
+                font: {
+                    family: 'Quicksand'
                 }
-                 // if there are 4 sample_values
-                else if (data.samples[i].sample_values.length===4){ 
-                    //Plot the bar   
-                    var trace13={
-                        x:data4,
-                        text:[data.samples[i].otu_labels[3],data.samples[i].otu_labels[2],data.samples[i].otu_labels[1],data.samples[i].otu_labels[0]],                    
-                        name:"otu",
-                        type:"bar",
-                        orientation:"h"
-                    };
-                    var chartData13 = [trace13];
-                    var layout13 = {
-                        title: "Bacteria Cultures Found",
-                        yaxis:{
-                            tickmode:"array",
-                            tickvals:[0,1,2,3],
-                            ticktext:["OTU "+data.samples[i].otu_ids[3],"OTU "+data.samples[i].otu_ids[2],"OTU "+data.samples[i].otu_ids[1],"OTU "+data.samples[i].otu_ids[0]]
-                        }
-                       };
-       
-                        //Plot the Chart to a div tag with bar
-                       Plotly.newPlot("bar", chartData13, layout13);
+            },
+            xaxis: {
+                title: "<b>OTU Id</b>",
+                color: 'rgb(34,94,168)'
+            },
+            yaxis: {
+                title: "<b>Sample Values</b>",
+                color: 'rgb(34,94,168)'
+            },
+            showlegend: false,
+        };
 
-                }
-                 // if there are 5 sample_values
-                else if (data.samples[i].sample_values.length===5){ 
-                    //Plot the bar   
-                    var trace14={
-                        x:data4,
-                        text:[data.samples[i].otu_labels[4],data.samples[i].otu_labels[3],data.samples[i].otu_labels[2],data.samples[i].otu_labels[1],data.samples[i].otu_labels[0]],                    
-                        name:"otu",
-                        type:"bar",
-                        orientation:"h"
-                    };
-                    var chartData14 = [trace14];
-                    var layout14 = {
-                        title: "Bacteria Cultures Found",
-                        yaxis:{
-                            tickmode:"array",
-                            tickvals:[0,1,2,3,4],
-                            ticktext:["OTU "+data.samples[i].otu_ids[4],"OTU "+data.samples[i].otu_ids[3],"OTU "+data.samples[i].otu_ids[2],"OTU "+data.samples[i].otu_ids[1],"OTU "+data.samples[i].otu_ids[0]]
-                        }
-                       };
-       
-                        //Plot the Chart to a div tag with bar
-                       Plotly.newPlot("bar", chartData14, layout14);
+        // plot the bubble chat to the appropriate div
+        Plotly.newPlot('bubble', dataBub, layoutBub);
 
-                }
-                 // if there are 6 sample_values
-                else if (data.samples[i].sample_values.length===6){ 
-                    //Plot the bar   
-                    var trace15={
-                        x:data4,
-                        text:[data.samples[i].otu_labels[5],data.samples[i].otu_labels[4],data.samples[i].otu_labels[3],data.samples[i].otu_labels[2],data.samples[i].otu_labels[1],data.samples[i].otu_labels[0]],                    
-                        name:"otu",
-                        type:"bar",
-                        orientation:"h"
-                    };
-                    var chartData15 = [trace15];
-                    var layout15 = {
-                        title: "Bacteria Cultures Found",
-                        yaxis:{
-                            tickmode:"array",
-                            tickvals:[0,1,2,3,4,5],
-                            ticktext:["OTU "+data.samples[i].otu_ids[5],"OTU "+data.samples[i].otu_ids[4],"OTU "+data.samples[i].otu_ids[3],"OTU "+data.samples[i].otu_ids[2],"OTU "+data.samples[i].otu_ids[1],"OTU "+data.samples[i].otu_ids[0]]
-                        }
-                       };
-       
-                        //Plot the Chart to a div tag with bar
-                       Plotly.newPlot("bar", chartData15, layout15);
+        // ----------------------------------
+        // PLOT GAUGE CHART (OPTIONAL)
+        // ----------------------------------
 
-                }
-                 // if there are 7 sample_values
-                else if (data.samples[i].sample_values.length===7){ 
-                    //Plot the bar   
-                    var trace16={
-                        x:data4,
-                        text:[data.samples[i].otu_labels[6],data.samples[i].otu_labels[5],data.samples[i].otu_labels[4],data.samples[i].otu_labels[3],data.samples[i].otu_labels[2],data.samples[i].otu_labels[1],data.samples[i].otu_labels[0]],                    
-                        name:"otu",
-                        type:"bar",
-                        orientation:"h"
-                    };
-                    var chartData16 = [trace16];
-                    var layout16 = {
-                        title: "Bacteria Cultures Found",
-                        yaxis:{
-                            tickmode:"array",
-                            tickvals:[0,1,2,3,4,5,6],
-                            ticktext:["OTU "+data.samples[i].otu_ids[6],"OTU "+data.samples[i].otu_ids[5],"OTU "+data.samples[i].otu_ids[4],"OTU "+data.samples[i].otu_ids[3],"OTU "+data.samples[i].otu_ids[2],"OTU "+data.samples[i].otu_ids[1],"OTU "+data.samples[i].otu_ids[0]]
-                        }
-                       };
-       
-                        //Plot the Chart to a div tag with bar
-                       Plotly.newPlot("bar", chartData16, layout16);
-
-                }
-                 // if there are 8 sample_values
-                else if (data.samples[i].sample_values.length===8){ 
-                    //Plot the bar   
-                    var trace17={
-                        x:data4,
-                        text:[data.samples[i].otu_labels[7],data.samples[i].otu_labels[6],data.samples[i].otu_labels[5],data.samples[i].otu_labels[4],data.samples[i].otu_labels[3],data.samples[i].otu_labels[2],data.samples[i].otu_labels[1],data.samples[i].otu_labels[0]],                    
-                        name:"otu",
-                        type:"bar",
-                        orientation:"h"
-                    };
-                    var chartData17 = [trace17];
-                    var layout17 = {
-                        title: "Bacteria Cultures Found",
-                        yaxis:{
-                            tickmode:"array",
-                            tickvals:[0,1,2,3,4,5,6,7],
-                            ticktext:["OTU "+data.samples[i].otu_ids[7],"OTU "+data.samples[i].otu_ids[6],"OTU "+data.samples[i].otu_ids[5],"OTU "+data.samples[i].otu_ids[4],"OTU "+data.samples[i].otu_ids[3],"OTU "+data.samples[i].otu_ids[2],"OTU "+data.samples[i].otu_ids[1],"OTU "+data.samples[i].otu_ids[0]]
-                        }
-                       };
-       
-                        //Plot the Chart to a div tag with bar
-                       Plotly.newPlot("bar", chartData17, layout17);
-
-                }
-                 // if there are 9 sample_values
-                else if (data.samples[i].sample_values.length===9){ 
-                    //Plot the bar   
-                    var trace18={
-                        x:data4,
-                        text:[data.samples[i].otu_labels[8],data.samples[i].otu_labels[7],data.samples[i].otu_labels[6],data.samples[i].otu_labels[5],data.samples[i].otu_labels[4],data.samples[i].otu_labels[3],data.samples[i].otu_labels[2],data.samples[i].otu_labels[1],data.samples[i].otu_labels[0]],                    
-                        name:"otu",
-                        type:"bar",
-                        orientation:"h"
-                    };
-                    var chartData18 = [trace18];
-                    var layout18 = {
-                        title: "Bacteria Cultures Found",
-                        yaxis:{
-                            tickmode:"array",
-                            tickvals:[0,1,2,3,4,5,6,7,8],
-                            ticktext:["OTU "+data.samples[i].otu_ids[8],"OTU "+data.samples[i].otu_ids[7],"OTU "+data.samples[i].otu_ids[6],"OTU "+data.samples[i].otu_ids[5],"OTU "+data.samples[i].otu_ids[4],"OTU "+data.samples[i].otu_ids[3],"OTU "+data.samples[i].otu_ids[2],"OTU "+data.samples[i].otu_ids[1],"OTU "+data.samples[i].otu_ids[0]]
-                        }
-                       };
-       
-                        //Plot the Chart to a div tag with bar
-                       Plotly.newPlot("bar", chartData18, layout18);
-
-                }
-                 // if there is 0 sample_value
-                else if (data.samples[i].sample_values.length===0){ 
-                    //Plot the bar   
-                    var trace19={
-                        x:0,
-                        text:[0],                    
-                        name:"otu",
-                        type:"bar",
-                        orientation:"h"
-                    };
-                    var chartData19 = [trace19];
-                    var layout19 = {
-                        title: "No Bacteria Cultures Found",
-                        yaxis:{
-                            tickmode:"array",
-                            tickvals:[0],
-                            ticktext:[0]
-                        }
-                       };
-       
-                        //Plot the Chart to a div tag with bar
-                       Plotly.newPlot("bar", chartData19, layout19);
-
-                }
-                // if there are 10 or over 10 sample_values
-                else{ 
-                    //Plot the bar   
-                    var trace1={
-                        x:data4,
-                        text:[data.samples[i].otu_labels[9],data.samples[i].otu_labels[8],data.samples[i].otu_labels[7],data.samples[i].otu_labels[6],data.samples[i].otu_labels[5],data.samples[i].otu_labels[4],data.samples[i].otu_labels[3],data.samples[i].otu_labels[2],data.samples[i].otu_labels[1],data.samples[i].otu_labels[0]],                    
-                        name:"otu",
-                        type:"bar",
-                        orientation:"h"
-                    };
-                    var chartData = [trace1];
-                    var layout1 = {
-                        title: "Top 10 Bacteria Cultures Found",
-                        yaxis:{
-                            tickmode:"array",
-                            tickvals:[0,1,2,3,4,5,6,7,8,9],
-                            ticktext:["OTU "+data.samples[i].otu_ids[9],"OTU "+data.samples[i].otu_ids[8],"OTU "+data.samples[i].otu_ids[7],"OTU "+data.samples[i].otu_ids[6],"OTU "+data.samples[i].otu_ids[5],"OTU "+data.samples[i].otu_ids[4],"OTU "+data.samples[i].otu_ids[3],"OTU "+data.samples[i].otu_ids[2],"OTU "+data.samples[i].otu_ids[1],"OTU "+data.samples[i].otu_ids[0]]
-                        }
-                       };
-       
-                        //Plot the Chart to a div tag with bar
-                       Plotly.newPlot("bar", chartData, layout1);
-
-                }
-            // plot the bubble chart
-            var trace3={
-                    x:otuid,
-                    y:data2,
-                    text:data.samples[i].otu_labels,
-                    mode:"markers",
-                    marker:{
-                    size:data2,
-                    color:otuid
-                    }
-                };
-            var chartdata3=[trace3]
-            var layout3={
-                    title:"Bacteria Cultures Per Sample",
-                    xaxis:{
-                        title: "OTU ID",
-                    }
-                }
-                // Plot the Chart to a div tag with bubble
-                Plotly.newPlot("bubble",chartdata3,layout3);    
-                        
-                    
-                
-                
-            break;
-            
-           
-            
-            }
+        // if wfreq has a null value, make it zero for calculating pointer later
+        if (wfreq == null) {
+            wfreq = 0;
         }
-    });
-    
-    
-}
+
+        // create an indicator trace for the gauge chart
+        var traceGauge = {
+            domain: { x: [0, 1], y: [0, 1] },
+            value: wfreq,
+            type: "indicator",
+            mode: "gauge",
+            gauge: {
+                axis: {
+                    range: [0, 9],
+                    tickmode: 'linear',
+                    tickfont: {
+                        size: 15
+                    }
+                },
+                bar: { color: 'rgba(8,29,88,0)' }, // making gauge bar transparent since a pointer is being used instead
+                steps: [
+                    { range: [0, 1], color: 'rgb(255,255,217)' },
+                    { range: [1, 2], color: 'rgb(237,248,217)' },
+                    { range: [2, 3], color: 'rgb(199,233,180)' },
+                    { range: [3, 4], color: 'rgb(127,205,187)' },
+                    { range: [4, 5], color: 'rgb(65,182,196)' },
+                    { range: [5, 6], color: 'rgb(29,145,192)' },
+                    { range: [6, 7], color: 'rgb(34,94,168)' },
+                    { range: [7, 8], color: 'rgb(37,52,148)' },
+                    { range: [8, 9], color: 'rgb(8,29,88)' }
+                ]
+            }
+        };
+
+        // determine angle for each wfreq segment on the chart
+        var angle = (wfreq / 9) * 180;
+
+        // calculate end points for triangle pointer path
+        var degrees = 180 - angle,
+            radius = .8;
+        var radians = degrees * Math.PI / 180;
+        var x = radius * Math.cos(radians);
+        var y = radius * Math.sin(radians);
+
+        // Path: to create needle shape (triangle). Initial coordinates of two of the triangle corners plus the third calculated end tip that points to the appropriate segment on the gauge 
+        // M aX aY L bX bY L cX cY Z
+        var mainPath = 'M -.0 -0.025 L .0 0.025 L ',
+            cX = String(x),
+            cY = String(y),
+            pathEnd = ' Z';
+        var path = mainPath + cX + " " + cY + pathEnd;
+
+        gaugeColors = ['rgb(8,29,88)', 'rgb(37,52,148)', 'rgb(34,94,168)', 'rgb(29,145,192)', 'rgb(65,182,196)', 'rgb(127,205,187)', 'rgb(199,233,180)', 'rgb(237,248,217)', 'rgb(255,255,217)', 'white']
+
+        // create a trace to draw the circle where the needle is centered
+        var traceNeedleCenter = {
+            type: 'scatter',
+            showlegend: false,
+            x: [0],
+            y: [0],
+            marker: { size: 35, color: '850000' },
+            name: wfreq,
+            hoverinfo: 'name'
+        };
+
+        // create a data array from the two traces
+        var dataGauge = [traceGauge, traceNeedleCenter];
+
+        // define a layout for the chart
+        var layoutGauge = {
+
+            // draw the needle pointer shape using path defined above
+            shapes: [{
+                type: 'path',
+                path: path,
+                fillcolor: '850000',
+                line: {
+                    color: '850000'
+                }
+            }],
+            font: {
+                family: 'Quicksand'
+            },
+            hoverlabel: {
+                font: {
+                    family: 'Quicksand',
+                    size: 16
+                }
+            },
+            title: {
+                text: `<b>Test Subject ${id}</b><br><b>Belly Button Washing Frequency</b><br><br>Scrubs per Week`,
+                font: {
+                    size: 18,
+                    color: 'rgb(34,94,168)'
+                },
+            },
+            height: 500,
+            width: 500,
+            xaxis: {
+                zeroline: false,
+                showticklabels: false,
+                showgrid: false,
+                range: [-1, 1],
+                fixedrange: true // disable zoom
+            },
+            yaxis: {
+                zeroline: false,
+                showticklabels: false,
+                showgrid: false,
+                range: [-0.5, 1.5],
+                fixedrange: true // disable zoom
+            }
+        };
+
+        // plot the gauge chart
+        Plotly.newPlot('gauge', dataGauge, layoutGauge);
+
+
+    })); // close .then function
+
+}; // close plotCharts() function
+
+// when there is a change in the dropdown select menu, this function is called with the ID as a parameter
+function optionChanged(id) {
+
+    // reset the data
+    resetData();
+
+    // plot the charts for this id
+    plotCharts(id);
+
+
+} // close optionChanged function
+
+// call the init() function for default data
 init();
