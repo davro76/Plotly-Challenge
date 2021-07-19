@@ -318,7 +318,7 @@ function plotCharts(id) {
                 }
             },
             title: {
-                text: `<b>Test Subject ${id}</b><br><b>Belly Button Washing Frequency</b><br><br>Scrubs per Week`,
+                text: `<b>Test Subject ${id}</b><br><b>Wash Frequency</b><br><br>Scrubs per Week`,
                 font: {
                     size: 18,
                     color: 'rgb(34,94,168)'
